@@ -20,11 +20,20 @@ from bs4 import BeautifulSoup
 import os
 from os.path import join, dirname
 from dotenv import load_dotenv
-
+import mysql.connector
 
 from telegram import InlineQueryResultArticle, ParseMode, InputTextMessageContent, Update
 from telegram.ext import Updater, InlineQueryHandler, CommandHandler, CallbackContext
 from telegram.utils.helpers import escape_markdown
+
+# Conexao ao BD
+mydb = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="vaga_bot"
+    )
+
 
 # Enable logging
 logging.basicConfig(
@@ -34,49 +43,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def alarm(context: CallbackContext) -> None:
-    """Send the alarm message."""
-    job = context.job
-    context.bot.send_message(job.context, text='Beep!')
-
-
-def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
-    """Remove job with given name. Returns whether job was removed."""
-    current_jobs = context.job_queue.get_jobs_by_name(name)
-    if not current_jobs:
-        return False
-    for job in current_jobs:
-        job.schedule_removal()
-    return True
-
-
-def set_timer(update: Update, context: CallbackContext) -> None:
-    """Add a job to the queue."""
-    chat_id = update.message.chat_id
-    try:
-        # args[0] should contain the time for the timer in seconds
-        due = int(context.args[0])
-        if due < 0:
-            update.message.reply_text('Sorry we can not go back to future!')
-            return
-
-        job_removed = remove_job_if_exists(str(chat_id), context)
-        context.job_queue.run_repeating(alarm, 2, context=chat_id, name=str(chat_id))
-
-        text = 'Timer successfully set!'
-        if job_removed:
-            text += ' Old one was removed.'
-        update.message.reply_text(text)
-
-    except (IndexError, ValueError):
-        update.message.reply_text('Usage: /set <seconds>')
-
-
-# Define a few command handlers. These usually take the two arguments update and
-# context. Error handlers also receive the raised TelegramError object in error.
-def start(update: Update, context: CallbackContext) -> None:
-    """Send a message when the command /start is issued."""
-    # update.message.reply_text('Hi!')
+def minerar(context: CallbackContext) -> None:
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36', }
@@ -101,7 +68,7 @@ def start(update: Update, context: CallbackContext) -> None:
 
         ID = vaga.find('span', attrs={'class', 'opened-by'})
 
-        ID.text.strip()[ID.text.strip().index('#') + 1:ID.text.strip().index(' ') + 1]
+        # ID.text.strip()[ID.text.strip().index('#') + 1:ID.text.strip().index(' ') + 1]
 
         indice = int(ID.text.strip()[ID.text.strip().index('#') + 1:ID.text.strip().index(' ') + 1])
 
@@ -120,14 +87,101 @@ def start(update: Update, context: CallbackContext) -> None:
 
         texto += f"{soup.find('td', attrs={'class', 'd-block'}).text}"
 
-        update.message.reply_text(texto)
+        mycursor = mydb.cursor(buffered=True)
+
+        mycursor.execute("SELECT IDvaga FROM vaga order by ID DESC")
+
+        myresult = mycursor.fetchone()
+
+        mycursor.close()
+
+        job = context.job
+        if myresult:
+            if myresult[0] != indice:
+                context.bot.send_message(job.context, text=texto)
+
+                mycursor = mydb.cursor()
+
+                sql = "INSERT INTO vaga (IDvaga) VALUES (%s)"
+                val = (indice, )
+
+                mycursor.execute(sql, val)
+
+                mydb.commit()
+            else:
+                context.bot.send_message(job.context, text="Já adicionado")
+
+            # job = context.job
+            # context.bot.send_message(job.context, text=f'{myresult[0]}-{indice}')
+        #         if x[0] == update.message.chat_id:
+        #             return True
+        # return False
+
+        # update.message.reply_text(texto)
 
         break
 
 
+# def alarm(context: CallbackContext) -> None:
+#     """Send the alarm message."""
+#     job = context.job
+#     context.bot.send_message(job.context, text='Beep!')
+
+
+def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
+    """Remove job with given name. Returns whether job was removed."""
+    current_jobs = context.job_queue.get_jobs_by_name(name)
+    if not current_jobs:
+        return False
+    for job in current_jobs:
+        job.schedule_removal()
+    return True
+
+
+# def set_timer(update: Update, context: CallbackContext) -> None:
+#     """Add a job to the queue."""
+#     chat_id = update.message.chat_id
+#     try:
+#         # args[0] should contain the time for the timer in seconds
+#         due = int(context.args[0])
+#         if due < 0:
+#             update.message.reply_text('Sorry we can not go back to future!')
+#             return
+#
+#         job_removed = remove_job_if_exists(str(chat_id), context)
+#         context.job_queue.run_repeating(minerar, 5, context=chat_id, name=str(chat_id))
+#
+#         text = 'Timer successfully set!'
+#         if job_removed:
+#             text += ' Old one was removed.'
+#         update.message.reply_text(text)
+#
+#     except (IndexError, ValueError):
+#         update.message.reply_text('Usage: /set <seconds>')
+
+
+# Define a few command handlers. These usually take the two arguments update and
+# context. Error handlers also receive the raised TelegramError object in error.
+def start(update: Update, context: CallbackContext) -> None:
+    """Send a message when the command /start is issued."""
+    # update.message.reply_text('Hi!')
+    """Add a job to the queue."""
+    chat_id = update.message.chat_id
+
+    job_removed = remove_job_if_exists(str(chat_id), context)
+    context.job_queue.run_repeating(minerar, 2, context=chat_id, name=str(chat_id))
+
+    text = 'Bot ativado com sucesso'
+    if job_removed:
+        text += ' Old one was removed.'
+    update.message.reply_text(text)
+
+
+
+
 
 def help_command(update: Update, context: CallbackContext) -> None:
-    """Send a message when the command /help is issued."""
+    """Send a message when the \command /help is issued."""
     update.message.reply_text('Help!')
 
 
