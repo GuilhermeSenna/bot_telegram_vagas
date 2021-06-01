@@ -211,28 +211,29 @@ def inlinequery(update: Update, context: CallbackContext) -> None:
     update.inline_query.answer(results)
 
 
+# Função principal
 def main() -> None:
-    # Create the Updater and pass it your bot's token.
-    # Make sure to set use_context=True to use the new context based callbacks
-    # Post version 12 this will no longer be necessary
+
+    # Guardando o token do bot
     dotenv_path = join(dirname(__file__), '.env')
+
+    # Carregando o token
     load_dotenv(dotenv_path)
 
+    # Adicionando o token ao carregador do bot
     updater = Updater(os.environ.get("token"))
 
-    updater = Updater("1487369056:AAEa3q_d3FxDaD6RlSeubAO968UbQ96scDw", use_context=True)
-
-    # Get the dispatcher to register handlers
+    # Registrador de solicitações do usuário
     dispatcher = updater.dispatcher
 
-    # on different commands - answer in Telegram
+    # Comando do usuário, /start
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("help", help_command))
 
-    # on noncommand i.e message - echo the message on Telegram
+    # Para mensagens que não são comandos
     dispatcher.add_handler(InlineQueryHandler(inlinequery))
 
-    # Start the Bot
+    # Starta o bot
     updater.start_polling()
 
     # Block until the user presses Ctrl-C or the process receives SIGINT,
